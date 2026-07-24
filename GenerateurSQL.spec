@@ -5,7 +5,7 @@ a = Analysis(
     ['generate_sql_table_v2.5.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('medias/icone.ico', 'medias')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,4 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['medias\\icone.ico'],
 )

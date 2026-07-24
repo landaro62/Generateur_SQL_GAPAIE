@@ -3,13 +3,25 @@ from tkinter import ttk, filedialog, messagebox
 import pandas as pd
 import os
 import re
+import sys
 import datetime
+
+
+def resource_path(relative_path):
+    """Résout un chemin de ressource, que l'app tourne en script ou en .exe PyInstaller."""
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
+
 
 class App:
     def __init__(self, root):
         self.root = root
         root.title("Générateur SQL depuis CSV/Excel")
         root.resizable(True, True)
+        try:
+            root.iconbitmap(resource_path(os.path.join("medias", "icone.ico")))
+        except tk.TclError:
+            pass
 
         self.df = None
         self.table_name = None
