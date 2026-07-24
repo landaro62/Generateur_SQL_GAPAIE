@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['generate_sql_table_v2.2.py'],
+    ['generate_sql_table_v2.5.py'],
     pathex=[],
     binaries=[],
     datas=[],

@@ -3,11 +3,12 @@ from tkinter import ttk, filedialog, messagebox
 import pandas as pd
 import os
 import re
+import datetime
 
 class App:
     def __init__(self, root):
         self.root = root
-        root.title("Générateur SQL depuis CSV")
+        root.title("Générateur SQL depuis CSV/Excel")
         root.resizable(True, True)
 
         self.df = None
@@ -23,10 +24,10 @@ class App:
 
         # Bloc explicatif
         help_text = (
-            "Ce petit utilitaire vous permet de transformer un fichier CSV issu d'une table GAPAIE\n"
-            "en un script SQL d'insertion pour GAPAIE (INSERT INTO). Procédure :\n"
-            "Le fichier source doit être en UTF8 ou ANSI, séparateur point-virgule\n"
-            "1) Cliquez sur “Charger CSV…” et sélectionnez votre fichier.\n"
+            "Ce petit utilitaire vous permet de transformer un fichier CSV ou Excel issu\n"
+            "d'une table GAPAIE en un script SQL (INSERT ou UPDATE). Procédure :\n"
+            "Formats acceptés : CSV (UTF8 ou ANSI, séparateur point-virgule), XLSX, XLS\n"
+            "1) Cliquez sur “Charger fichier…” et sélectionnez votre fichier.\n"
             "2) Choisissez le type de requête (INSERT ou UPDATE).\n"
             "3) Cochez les colonnes que vous souhaitez inclure. En mode UPDATE,\n"
             "   cochez aussi “Clé (WHERE)” pour la ou les colonnes qui identifient\n"
@@ -40,8 +41,8 @@ class App:
         help_frame.grid(row=0, column=0, columnspan=2, sticky="ew", **padding)
         ttk.Label(help_frame, text=help_text, justify="left").pack(fill="x", expand=True)
 
-        # Ligne de chargement CSV
-        self.btn_load = ttk.Button(frame, text="Charger CSV…", command=self.load_csv)
+        # Ligne de chargement du fichier source
+        self.btn_load = ttk.Button(frame, text="Charger fichier…", command=self.load_csv)
         self.btn_load.grid(row=1, column=0, **padding)
         self.csv_label = ttk.Label(frame, text="Aucun fichier chargé", width=40)
         self.csv_label.grid(row=1, column=1, **padding)
@@ -112,15 +113,27 @@ class App:
 
     def load_csv(self):
         path = filedialog.askopenfilename(
-            title="Sélectionnez le fichier CSV",
-            filetypes=[("CSV (point-virgule)", "*.csv"), ("Tous fichiers", "*.*")]
+            title="Sélectionnez le fichier source",
+            filetypes=[
+                ("Fichiers supportés", "*.csv *.xlsx *.xls"),
+                ("CSV (point-virgule)", "*.csv"),
+                ("Excel", "*.xlsx *.xls"),
+                ("Tous fichiers", "*.*"),
+            ]
         )
         if not path:
             return
+        ext = os.path.splitext(path)[1].lower()
         try:
-            df = self._read_csv_auto(path)
+            if ext == '.csv':
+                df = self._read_csv_auto(path)
+            elif ext in ('.xlsx', '.xls'):
+                df = self._read_excel_auto(path, ext)
+            else:
+                messagebox.showerror("Erreur", "Format de fichier non supporté : {}".format(ext))
+                return
         except Exception as e:
-            messagebox.showerror("Erreur", "Impossible de lire le CSV :\n{}".format(e))
+            messagebox.showerror("Erreur", "Impossible de lire le fichier :\n{}".format(e))
             return
 
         self.df = df
@@ -142,6 +155,25 @@ class App:
             return pd.read_csv(path, sep=';', dtype=str, encoding='utf-8-sig').fillna('')
         except UnicodeDecodeError:
             return pd.read_csv(path, sep=';', dtype=str, encoding='cp1252').fillna('')
+
+    def _read_excel_auto(self, path, ext):
+        """
+        Lit un fichier Excel (.xlsx via openpyxl, .xls via xlrd), première feuille,
+        et convertit chaque cellule en texte (dates -> JJ/MM/AAAA, nombres entiers
+        sans '.0' final) pour rester cohérent avec la lecture CSV.
+        """
+        engine = 'openpyxl' if ext == '.xlsx' else 'xlrd'
+        df = pd.read_excel(path, dtype=object, engine=engine)
+        return df.apply(lambda col: col.map(self._excel_cell_to_str))
+
+    def _excel_cell_to_str(self, value):
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return ''
+        if isinstance(value, (pd.Timestamp, datetime.datetime, datetime.date)):
+            return value.strftime('%d/%m/%Y')
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value)
 
     def _show_column_selection(self):
         # Vider ancien contenu
